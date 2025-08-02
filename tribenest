@@ -143,6 +143,25 @@ tribenest_upgrade() {
     print_info "Stopping current services..."
     docker compose down
     
+    # Wait for containers to fully stop (with timeout)
+    print_info "Waiting for containers to stop..."
+    timeout=60  # 60 seconds timeout
+    counter=0
+    while docker ps --format "table {{.Names}}" | grep -q "tribenest-" && [ $counter -lt $timeout ]; do
+        print_info "Waiting for containers to stop... ($counter/$timeout seconds)"
+        sleep 2
+        counter=$((counter + 2))
+    done
+    
+    if [ $counter -ge $timeout ]; then
+        print_warning "Timeout reached. Force stopping remaining containers..."
+        docker ps --format "table {{.Names}}" | grep "tribenest-" | xargs -r docker stop
+    fi
+    
+    # Additional cleanup to ensure no conflicts
+    print_info "Cleaning up any remaining containers..."
+    docker ps -a --format "table {{.Names}}" | grep "tribenest-" | xargs -r docker rm -f
+    
     print_info "Starting services with new images..."
     docker compose up -d
 
