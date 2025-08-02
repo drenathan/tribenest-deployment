@@ -103,11 +103,11 @@ check_docker() {
     fi
 }
 
-# Function to check if docker-compose is available
+# Function to check if docker compose is available
 check_docker_compose() {
-    if ! command -v docker-compose > /dev/null 2>&1; then
-        print_error "docker-compose is not installed or not in PATH!"
-        echo "Please install docker-compose and try again."
+    if ! docker compose version > /dev/null 2>&1; then
+        print_error "docker compose is not available!"
+        echo "Please ensure Docker is installed and includes compose functionality."
         exit 1
     fi
 }
@@ -121,11 +121,11 @@ tribenest_up() {
     check_docker
     check_docker_compose
 
-    print_info "Starting docker-compose up..."
-    docker-compose up -d
-
+    print_info "Starting docker compose up..."
+    docker compose up -d
+    
     print_success "Tribenest services started successfully!"
-    print_info "You can check the status with: docker-compose ps"
+    print_info "You can check the status with: docker compose ps"
 }
 
 # Function for 'upgrade' command
@@ -138,19 +138,19 @@ tribenest_upgrade() {
     check_docker_compose
 
     print_info "Pulling latest images..."
-    docker-compose pull
-
+    docker compose pull
+    
     print_info "Stopping current services..."
-    docker-compose down
-
+    docker compose down
+    
     print_info "Starting services with new images..."
-    docker-compose up -d
+    docker compose up -d
 
     print_info "Cleaning up Docker..."
     docker system prune -f
 
     print_success "Tribenest services upgraded successfully!"
-    print_info "You can check the status with: docker-compose ps"
+    print_info "You can check the status with: docker compose ps"
 }
 
 # Function for 'down' command
@@ -160,8 +160,8 @@ tribenest_down() {
     check_docker
     check_docker_compose
 
-    docker-compose down
-
+    docker compose down
+    
     print_success "Tribenest services stopped successfully!"
 }
 
