@@ -166,7 +166,7 @@ tribenest_upgrade() {
     docker compose up -d
 
     print_info "Cleaning up Docker..."
-    docker system prune -f
+    docker system prune -f --volumes=false
 
     print_success "Tribenest services upgraded successfully!"
     print_info "You can check the status with: docker compose ps"
