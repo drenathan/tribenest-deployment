@@ -97,10 +97,13 @@ services:
   # set up minio bucket
   minio_setup:
     image: minio/mc
+    container_name: tribenest-minio-setup
     depends_on:
       - minio
     networks:
       - tribenest-prod-network
+    volumes:
+      - ./minio-anon-permission.json:/minio-anon-permission.json
     entrypoint: >
       /bin/sh -c "
         # Wait until MinIO is responding
