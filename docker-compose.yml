@@ -1,0 +1,135 @@
+version: "3.8"
+
+services:
+  # Main application
+  tribenest-app:
+    image: ghcr.io/drenathan/tribenest:latest
+    container_name: tribenest-app
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    extra_hosts:
+      - "api.localhost:127.0.0.1"
+      - "admin.localhost:127.0.0.1"
+    environment:
+      # Database configuration
+      - NODE_ENV=production
+      - PORT=8000
+      - DATABASE_HOST=${DATABASE_HOST}
+      - DATABASE_PORT=${DATABASE_PORT}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_NAME=${DATABASE_NAME}
+
+      # Redis configuration
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@tribenest-redis:6379
+
+      # JWT configuration
+      - JWT_SECRET=${JWT_SECRET}
+      - ACCESSTOKENTTL=${ACCESSTOKENTTL}
+
+      - ROOT_DOMAIN=${ROOT_DOMAIN}
+      - API_URL=${API_URL}
+      - ADMIN_URL=${ADMIN_URL}
+
+      # Minio configuration
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - MINIO_URL=${MINIO_URL}
+      - MINIO_REGION=${MINIO_REGION}
+      - MINIO_BUCKET_URL=${MINIO_BUCKET_URL}
+
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - tribenest-prod-network
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: tribenest-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_DB=${DATABASE_NAME}
+    volumes:
+      - tribenest_postgres_prod_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - tribenest-prod-network
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: tribenest-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - tribenest_redis_prod_data:/data
+    networks:
+      - tribenest-prod-network
+
+  # Minio storage
+  minio:
+    image: minio/minio:latest
+    container_name: tribenest-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - tribenest_minio_prod_data:/data
+    networks:
+      - tribenest-prod-network
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+
+  # set up minio bucket
+  minio_setup:
+    image: minio/mc
+    depends_on:
+      - minio
+    networks:
+      - tribenest-prod-network
+    entrypoint: >
+      /bin/sh -c "
+        # Wait until MinIO is responding
+        until mc alias set tribenest http://tribenest-minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do
+          echo 'Waiting for MinIO...';
+          sleep 2;
+        done;
+
+        echo 'Connected to MinIO';
+
+        # Only create the bucket if it doesn't exist
+        if ! mc ls tribenest/${MINIO_BUCKET} > /dev/null 2>&1; then
+          echo 'Bucket not found. Creating...';
+          mc mb tribenest/${MINIO_BUCKET};
+          mc anonymous set-json minio-anon-permission.json tribenest/${MINIO_BUCKET};
+          echo 'Bucket created and policy set to public';
+        else
+          echo 'Bucket already exists';
+        fi;
+
+        echo 'MinIO setup complete';
+        exit 0;
+      "
+
+volumes:
+  tribenest_postgres_prod_data:
+  tribenest_redis_prod_data:
+  tribenest_minio_prod_data:
+
+networks:
+  tribenest-prod-network:
+    driver: bridge
