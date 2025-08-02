@@ -145,7 +145,7 @@ tribenest_upgrade() {
     
     # Wait for containers to fully stop (with timeout)
     print_info "Waiting for containers to stop..."
-    timeout=60  # 60 seconds timeout
+    timeout=180  # 180 seconds timeout
     counter=0
     while docker ps --format "table {{.Names}}" | grep -q "tribenest-" && [ $counter -lt $timeout ]; do
         print_info "Waiting for containers to stop... ($counter/$timeout seconds)"
