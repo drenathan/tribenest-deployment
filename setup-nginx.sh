@@ -22,8 +22,8 @@ echo "Domain: $DOMAIN_NAME"
 echo "Email: $EMAIL"
 echo ""
 
-# Step 0: Clean existing nginx configurations
-echo "0️⃣  Cleaning existing nginx configurations..."
+# Step 0: Check and clean existing nginx configurations
+echo "0️⃣  Checking and cleaning existing nginx configurations..."
 
 # Use sudo only if not running as root
 SUDO_CMD=""
@@ -31,55 +31,100 @@ if [[ $EUID -ne 0 ]]; then
     SUDO_CMD="sudo"
 fi
 
-# Remove only specific files, not all configurations
-$SUDO_CMD rm -f /etc/nginx/sites-enabled/default
-$SUDO_CMD rm -f /etc/nginx/sites-enabled/tribenest
-$SUDO_CMD rm -f /etc/nginx/sites-available/tribenest
-$SUDO_CMD rm -f /etc/nginx/conf.d/tribenest.conf
+# Check and remove only specific files if they exist
+if [[ -f /etc/nginx/sites-enabled/default ]]; then
+    echo "🗑️  Removing default nginx site..."
+    $SUDO_CMD rm -f /etc/nginx/sites-enabled/default
+fi
 
-# Ensure nginx has a minimal valid configuration
-$SUDO_CMD tee /etc/nginx/conf.d/default.conf << EOF
+if [[ -f /etc/nginx/sites-enabled/tribenest ]]; then
+    echo "🗑️  Removing existing tribenest site link..."
+    $SUDO_CMD rm -f /etc/nginx/sites-enabled/tribenest
+fi
+
+if [[ -f /etc/nginx/sites-available/tribenest ]]; then
+    echo "🗑️  Removing existing tribenest configuration..."
+    $SUDO_CMD rm -f /etc/nginx/sites-available/tribenest
+fi
+
+if [[ -f /etc/nginx/conf.d/tribenest.conf ]]; then
+    echo "🗑️  Removing existing tribenest conf.d file..."
+    $SUDO_CMD rm -f /etc/nginx/conf.d/tribenest.conf
+fi
+
+# Ensure nginx has a minimal valid configuration only if conf.d directory exists
+if [[ -d /etc/nginx/conf.d ]]; then
+    $SUDO_CMD tee /etc/nginx/conf.d/default.conf << EOF
 server {
     listen 80 default_server;
     server_name _;
     return 444;
 }
 EOF
+fi
 
-echo "✅ Existing nginx configurations cleaned"
+echo "✅ Nginx configuration cleanup completed"
 
-# Step 1: Install nginx if not installed
-echo "1️⃣  Installing nginx..."
-if ! command -v nginx &> /dev/null; then
-    if [[ -f /etc/os-release ]]; then
-        . /etc/os-release
-        OS=$NAME
-    else
-        echo "❌ Could not detect OS"
-        exit 1
-    fi
+# Step 1: Reinstall nginx
+echo "1️⃣  Reinstalling nginx..."
 
-    case $OS in
-        *"Ubuntu"*|*"Debian"*)
-            $SUDO_CMD apt update
-            $SUDO_CMD apt install -y nginx
-            ;;
-        *"CentOS"*|*"Red Hat"*|*"Amazon Linux"*)
-            $SUDO_CMD yum install -y nginx
-            $SUDO_CMD systemctl enable nginx
-            ;;
-        *"Alpine"*)
-            apk add nginx
-            ;;
-        *)
-            echo "❌ Unsupported OS: $OS"
-            echo "Please install nginx manually"
-            exit 1
-            ;;
-    esac
-    echo "✅ Nginx installed"
+# Detect OS for package manager
+if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+    OS=$NAME
+    OS_VERSION=$VERSION_ID
 else
-    echo "✅ Nginx already installed"
+    echo "❌ Could not detect OS"
+    echo "Please install nginx manually and run this script again"
+    exit 1
+fi
+
+echo "   Detected OS: $OS $OS_VERSION"
+
+# Stop nginx if running
+echo "   Stopping nginx service..."
+$SUDO_CMD systemctl stop nginx 2>/dev/null || true
+
+case $OS in
+    *"Ubuntu"*|*"Debian"*)
+        echo "   Using apt package manager..."
+        $SUDO_CMD apt update
+        $SUDO_CMD apt remove -y nginx nginx-common nginx-full 2>/dev/null || true
+        $SUDO_CMD apt autoremove -y
+        $SUDO_CMD apt install -y nginx
+        ;;
+    *"CentOS"*|*"Red Hat"*|*"Amazon Linux"*)
+        echo "   Using yum package manager..."
+        $SUDO_CMD yum remove -y nginx 2>/dev/null || true
+        $SUDO_CMD yum install -y nginx
+        $SUDO_CMD systemctl enable nginx
+        ;;
+    *"Alpine"*)
+        echo "   Using apk package manager..."
+        apk del nginx 2>/dev/null || true
+        apk add nginx
+        ;;
+    *"Fedora"*)
+        echo "   Using dnf package manager..."
+        $SUDO_CMD dnf remove -y nginx 2>/dev/null || true
+        $SUDO_CMD dnf install -y nginx
+        $SUDO_CMD systemctl enable nginx
+        ;;
+    *)
+        echo "❌ Unsupported OS: $OS"
+        echo "Please install nginx manually for your OS and run this script again"
+        exit 1
+        ;;
+esac
+
+# Verify installation
+if command -v nginx &> /dev/null; then
+    echo "✅ Nginx reinstalled successfully"
+    nginx_version=$(nginx -v 2>&1 | cut -d'/' -f2)
+    echo "   Version: $nginx_version"
+else
+    echo "❌ Nginx installation failed"
+    exit 1
 fi
 
 # Step 2: Add simplified nginx config
