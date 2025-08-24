@@ -289,6 +289,7 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         client_max_body_size 500M;
+        proxy_request_buffering off;
 
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
