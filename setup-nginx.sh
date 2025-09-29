@@ -152,6 +152,11 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+        proxy_buffer_size   128k;
+        proxy_buffers   4 256k;
+        proxy_busy_buffers_size   256k;
     }
 
     location /health {
