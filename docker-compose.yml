@@ -10,6 +10,7 @@ services:
     extra_hosts:
       - "api.localhost:127.0.0.1"
       - "admin.localhost:127.0.0.1"
+      - "host.docker.internal:host-gateway"
     environment:
       # Database configuration
       - NODE_ENV=production

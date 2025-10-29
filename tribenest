@@ -138,7 +138,7 @@ tribenest_upgrade() {
     check_docker_compose
 
     print_info "Pulling latest images..."
-    docker compose pull
+    docker compose pull tribenest-app
     
     print_info "Stopping current services..."
     docker compose down
